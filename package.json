@@ -1,0 +1,14 @@
+{
+  "name": "spotstory-gemini-prototype",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hackdays 2.O — Gemini-powered, non-diagnostic skin-change visit-prep prototype",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

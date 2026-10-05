@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f5">
+  <meta name="description" content="SpotStory turns skin observations into a clearer, non-diagnostic note for a healthcare conversation.">
+  <title>SpotStory — a clearer story for care</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="announcement"><span class="announcement-dot"></span> HACKDAYS 2.O <span class="announcement-divider">/</span> GEMINI API PROTOTYPE <span class="announcement-spacer"></span><span class="announcement-safe">EDUCATIONAL · NOT A DIAGNOSIS</span></div>
+
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="SpotStory home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 3.8c8.95 0 16.2 7.25 16.2 16.2S28.95 36.2 20 36.2 3.8 28.95 3.8 20 11.05 3.8 20 3.8Z" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 10.2c5.42 0 9.8 4.38 9.8 9.8s-4.38 9.8-9.8 9.8-9.8-4.38-9.8-9.8 4.38-9.8 9.8-9.8Z" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="3.6" fill="currentColor"/></svg></span>
+      <span class="brand-word">spot<span>story</span><small>CARE STARTS WITH CONTEXT</small></span>
+    </a>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="#how-it-works">How it works</a>
+      <a href="#safety">Safety by design</a>
+      <a href="#sources">Sources</a>
+    </nav>
+    <div class="header-actions">
+      <span class="api-status" id="apiStatus"><i></i><span>Checking Gemini…</span></span>
+      <a class="button button-small button-dark" href="#workspace">Try the prototype <span aria-hidden="true">↗</span></a>
+    </div>
+    <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false"><span></span><span></span></button>
+  </header>
+
+  <main id="top">
+    <section class="hero section-shell">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> A human-first skin-change companion</div>
+        <h1>Make the changing spot<br><em>easier to explain.</em></h1>
+        <p class="hero-lede">SpotStory pairs Gemini’s image understanding with your own timeline to create a calm, factual note for a healthcare conversation — never a cancer score.</p>
+        <div class="hero-actions">
+          <a class="button button-coral" href="#workspace">Build a visit brief <span aria-hidden="true">↓</span></a>
+          <button class="button button-quiet" id="heroDemo" type="button"><span class="play-dot">▶</span> Explore a sample case</button>
+        </div>
+        <div class="hero-trust"><span class="checkmark">✓</span> No diagnosis. No probability. No false “all clear.”</div>
+      </div>
+
+      <div class="hero-art" aria-label="Illustration showing a photo note, a timeline, and a clinician handoff">
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+        <div class="art-label art-label-top"><span class="tiny-spark">✳</span> FROM IMAGE TO CONTEXT</div>
+        <div class="photo-illustration">
+          <div class="skin-swatch"><span class="skin-spot"></span><span class="focus-corner fc1"></span><span class="focus-corner fc2"></span><span class="focus-corner fc3"></span><span class="focus-corner fc4"></span></div>
+          <span class="illustration-caption">Illustration · not a clinical photo</span>
+        </div>
+        <div class="floating-note note-timeline"><span class="note-icon note-icon-coral">↗</span><div><b>Your timeline</b><small>What changed · in your words</small></div><span class="note-check">✓</span></div>
+        <div class="floating-note note-handoff"><span class="note-icon note-icon-blue">≋</span><div><b>Visit-ready note</b><small>Clear context for a clinician</small></div><span class="note-arrow">↗</span></div>
+        <div class="art-tag">GEMINI MULTIMODAL<br><strong>Human stays in the loop</strong></div>
+      </div>
+      <div class="hero-bottomline"><span>BUILT FOR BETTER CONVERSATIONS</span><span class="bottomline-rule"></span><span>01 — 03</span></div>
+    </section>
+
+    <section class="safety-banner section-shell" role="note">
+      <span class="safety-symbol">i</span>
+      <p><strong>Research demo, not a medical device.</strong> A photo or AI response cannot rule skin cancer in or out. If a spot is new, changing, unusual, or worrying you, speak with a qualified healthcare professional.</p>
+      <a href="#safety">Our safety limits <span aria-hidden="true">↗</span></a>
+    </section>
+
+    <section id="workspace" class="workspace-section section-shell">
+      <div class="section-heading">
+        <div><div class="eyebrow eyebrow-muted"><span class="eyebrow-dot"></span> YOUR STORY, ORGANIZED</div><h2>Start with what <em>you noticed.</em></h2></div>
+        <div class="section-aside"><span class="step-pill">2 min</span><span>Private by design<br><small>Nothing is saved by this prototype</small></span></div>
+      </div>
+
+      <div class="workspace-grid">
+        <section class="panel photo-panel" aria-labelledby="photoHeading">
+          <div class="panel-heading"><span class="step-number">01</span><div><h3 id="photoHeading">Add a photo note</h3><p>Optional for your story; required for live Gemini image notes.</p></div></div>
+          <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Choose a skin photo">
+            <div id="emptyPhoto" class="empty-photo">
+              <span class="upload-art"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 21V6m0 0L10 12m6-6 6 6M6 20v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <strong>Drop a photo here</strong>
+              <span>or <u>choose a file</u> · JPG, PNG, WEBP · max 12 MB</span>
+              <small>For this prototype, use a fictional or non-identifying example only.</small>
+            </div>
+            <div id="photoPreview" class="photo-preview" hidden>
+              <img id="previewImage" alt="Selected image preview">
+              <span class="preview-label">LOCAL PREVIEW · NOT SENT YET</span>
+              <button id="removePhoto" class="remove-photo" type="button" aria-label="Remove photo">×</button>
+            </div>
+          </div>
+          <div class="synthetic-tools"><button id="syntheticPhoto" class="synthetic-photo-button" type="button">✳ Create a synthetic image for live testing</button><span>Abstract demo art only · not a clinical photo</span></div>
+          <div class="photo-controls">
+            <label class="select-label" for="languageSelect">Output language</label>
+            <select id="languageSelect" aria-label="Output language"><option value="English">English</option><option value="Hindi">हिन्दी · Hindi</option></select>
+            <span class="photo-control-note"><span class="lock-icon">◈</span> Re-encoded in your browser; not saved here.</span>
+          </div>
+          <div class="privacy-mini"><b>Before live analysis:</b> your selected photo is sent to Gemini through this prototype’s server. Don’t upload patient-identifiable or private health photos. <a href="#safety">Details</a></div>
+        </section>
+
+        <section class="panel story-panel" aria-labelledby="storyHeading">
+          <div class="panel-heading"><span class="step-number step-number-blue">02</span><div><h3 id="storyHeading">Capture your timeline</h3><p>Only share what helps you describe the spot.</p></div></div>
+          <div class="field-row">
+            <label class="field-label" for="bodyArea">Where is it?</label>
+            <select class="form-select" id="bodyArea"><option value="a part of the body">Choose an area</option><option>Face or scalp</option><option>Arm or hand</option><option>Leg or foot</option><option>Palm or sole</option><option>Under or around a nail</option><option>Torso or back</option><option>Other area</option><option>Prefer not to say</option></select>
+          </div>
+          <div class="field-row">
+            <label class="field-label" for="duration">How long have you noticed it?</label>
+            <select class="form-select" id="duration"><option value="I’m not sure when it started">Choose a timeframe</option><option>I noticed it recently</option><option>For a few weeks</option><option>For a few months</option><option>For more than a year</option><option>I'm not sure when it started</option></select>
+          </div>
+          <fieldset class="signals-fieldset">
+            <legend class="field-label">What have you noticed? <span>(select any)</span></legend>
+            <div class="signal-grid">
+              <label class="signal-chip"><input type="checkbox" name="signal" value="new"><span class="signal-check"></span><span>It is new</span></label>
+              <label class="signal-chip"><input type="checkbox" name="signal" value="changing"><span class="signal-check"></span><span>It is changing</span></label>
+              <label class="signal-chip"><input type="checkbox" name="signal" value="different"><span class="signal-check"></span><span>It looks different</span></label>
+              <label class="signal-chip"><input type="checkbox" name="signal" value="itchy or tender"><span class="signal-check"></span><span>It itches / feels tender</span></label>
+              <label class="signal-chip"><input type="checkbox" name="signal" value="bleeding or crusting"><span class="signal-check"></span><span>It bleeds / crusts</span></label>
+              <label class="signal-chip"><input type="checkbox" name="signal" value="not healing"><span class="signal-check"></span><span>It is not healing</span></label>
+            </div>
+          </fieldset>
+          <div class="field-row field-row-last">
+            <label class="field-label" for="extraNote">Anything else for your clinician? <span>optional · no names or contact details</span></label>
+            <textarea id="extraNote" maxlength="240" rows="2" placeholder="A short note in your own words…"></textarea>
+            <div class="char-count"><span id="charCount">0</span> / 240</div>
+          </div>
+          <label class="consent-row"><input id="liveConsent" type="checkbox"><span class="custom-check"></span><span>I understand live Gemini analysis sends the selected example image for processing. I’m using a fictional/non-identifying image.</span></label>
+          <div class="action-row">
+            <button class="button button-outline" type="button" id="demoButton"><span class="sparkle">✳</span> Try sample case</button>
+            <button class="button button-coral" type="button" id="liveButton" disabled>Run Gemini photo notes <span aria-hidden="true">↗</span></button>
+          </div>
+          <div id="liveHint" class="live-hint">Live Gemini needs a server-side key and an image. The sample case works without either.</div>
+        </section>
+      </div>
+
+      <div id="resultPanel" class="result-panel" hidden aria-live="polite">
+        <div class="result-topline"><div><span class="result-kicker"><span class="result-dot"></span><span id="resultMode">SAMPLE BRIEF</span></span><h2>Your visit brief</h2></div><div class="result-actions"><button id="copyBrief" class="button button-outline button-small" type="button">Copy note</button><button id="downloadBrief" class="button button-outline button-small" type="button">Download .txt</button><button id="closeResult" class="icon-close" type="button" aria-label="Close result">×</button></div></div>
+        <div class="result-grid">
+          <div class="result-card result-photo-card"><div class="result-card-label">PHOTO NOTE <span class="ai-pill" id="photoNoteTag">ILLUSTRATIVE</span></div><div id="photoQuality" class="photo-quality">No image analyzed</div><ul id="visualNotes" class="visual-notes"><li>This sample case is illustrative and does not use a real skin image.</li></ul><p id="resultLimit" class="result-limit">A camera photo can miss detail, colour can shift with lighting, and Gemini can make mistakes.</p></div>
+          <div class="result-card result-story-card"><div class="result-card-label">YOUR WORDS, ORGANIZED</div><p id="visitNote" class="visit-note"></p><div id="generalGuidance" class="guidance-box"></div></div>
+        </div>
+        <div class="result-footer"><span class="result-footer-icon">i</span><p><strong>Not a diagnosis or a cancer-risk estimate.</strong> This tool cannot rule out a skin condition. The AI note is for conversation prep only; a clinician decides what an examination or testing should include.</p></div>
+      </div>
+    </section>
+
+    <section id="how-it-works" class="how-section">
+      <div class="section-shell">
+        <div class="section-heading how-heading"><div><div class="eyebrow eyebrow-muted"><span class="eyebrow-dot"></span> THE PRODUCT IDEA</div><h2>AI for the note.<br><em>People for the care.</em></h2></div><p class="section-summary">Gemini is used where multimodal language models are helpful — turning an image and a person's own story into structured, understandable context. A fixed safety layer keeps diagnosis and treatment decisions out of scope.</p></div>
+        <div class="how-grid">
+          <article class="how-card"><span class="how-index">01 / NOTICE</span><div class="how-icon icon-peach">◉</div><h3>Describe, don't diagnose</h3><p>Gemini vision returns cautious, plain-language visual observations and photo-quality limits — not a cancer label or score.</p><span class="how-foot">MULTIMODAL INPUT · STRUCTURED OUTPUT</span></article>
+          <article class="how-card"><span class="how-index">02 / REMEMBER</span><div class="how-icon icon-blue">⌁</div><h3>Your timeline matters</h3><p>New, changing, itchy, bleeding, and non-healing are captured as your reported facts — never guessed from pixels.</p><span class="how-foot">USER-REPORTED · NOT INFERRED</span></article>
+          <article class="how-card"><span class="how-index">03 / SHARE</span><div class="how-icon icon-mint">↗</div><h3>Take a clearer note</h3><p>A concise, editable summary helps you explain what you noticed when speaking with a clinician.</p><span class="how-foot">HUMAN-IN-THE-LOOP BY DESIGN</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="safety" class="safety-section section-shell">
+      <div class="safety-card">
+        <div class="safety-card-left"><div class="eyebrow"><span class="eyebrow-dot"></span> SAFETY BY DESIGN</div><h2>What SpotStory<br><em>will not do.</em></h2><p>This hackathon build is a communication prototype, not a screening or triage product.</p></div>
+        <div class="safety-list">
+          <div><span class="safety-x">×</span><p><b>No diagnosis or “all clear.”</b><br>It never estimates whether a spot is cancer.</p></div>
+          <div><span class="safety-x">×</span><p><b>No urgency decision.</b><br>It does not decide how soon care is needed.</p></div>
+          <div><span class="safety-x">×</span><p><b>No saved health record.</b><br>The demo app does not persist your photo or notes.</p></div>
+          <div><span class="safety-x">×</span><p><b>No claim of clinical validation.</b><br>Real-world use would require expert review, fairness testing, privacy work, and appropriate regulatory assessment.</p></div>
+        </div>
+      </div>
+      <div class="data-note"><span class="lock-icon">◈</span><p><b>Live mode data flow:</b> the browser sends a resized image and your selected context to this local server; the server calls the Gemini API using a secret environment variable and returns structured text. The server does not write images to disk. Google processes the API request under its applicable terms — review them before using any real personal health information.</p></div>
+    </section>
+
+    <section id="sources" class="sources-section section-shell">
+      <div class="sources-heading"><div><div class="eyebrow eyebrow-muted"><span class="eyebrow-dot"></span> RESEARCH NOTES</div><h2>Grounded in <em>what we know.</em></h2></div><p>These references inform the education and engineering guardrails. They do not validate this prototype as a medical tool.</p></div>
+      <div class="source-list">
+        <a class="source-item" href="https://www.cancer.org/cancer/types/melanoma-skin-cancer/detection-diagnosis-staging/signs-and-symptoms.html" target="_blank" rel="noreferrer"><span class="source-number">01</span><span><b>American Cancer Society</b><small>Melanoma warning signs, evolving spots, and ABCDE guide</small></span><span class="source-arrow">↗</span></a>
+        <a class="source-item" href="https://www.aad.org/public/diseases/skin-cancer/darker-skin-tones" target="_blank" rel="noreferrer"><span class="source-number">02</span><span><b>American Academy of Dermatology</b><small>Skin cancer signs in darker skin tones, including palms, soles, and nails</small></span><span class="source-arrow">↗</span></a>
+        <a class="source-item" href="https://ai.google.dev/gemini-api/docs/image-understanding" target="_blank" rel="noreferrer"><span class="source-number">03</span><span><b>Google Gemini API</b><small>Image understanding and multimodal request patterns</small></span><span class="source-arrow">↗</span></a>
+        <a class="source-item" href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noreferrer"><span class="source-number">04</span><span><b>Google AI for Developers</b><small>API-key security: keep keys confidential and use a server-side proxy</small></span><span class="source-arrow">↗</span></a>
+        <a class="source-item" href="https://www.fda.gov/media/182871/download" target="_blank" rel="noreferrer"><span class="source-number">05</span><span><b>U.S. FDA</b><small>Total product lifecycle considerations for generative-AI-enabled devices</small></span><span class="source-arrow">↗</span></a>
+      </div>
+      <p class="source-disclaimer">The American Cancer Society notes that new or changing spots should be seen by a doctor; its ABCDE guide is not a diagnosis. The American Academy of Dermatology highlights that skin cancer can occur in people of all skin tones and in areas such as palms, soles, and around nails.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer section-shell"><a class="brand brand-footer" href="#top"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 3.8c8.95 0 16.2 7.25 16.2 16.2S28.95 36.2 20 36.2 3.8 28.95 3.8 20 11.05 3.8 20 3.8Z" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M20 10.2c5.42 0 9.8 4.38 9.8 9.8s-4.38 9.8-9.8 9.8-9.8-4.38-9.8-9.8 4.38-9.8 9.8-9.8Z" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="3.6" fill="currentColor"/></svg></span><span class="brand-word">spot<span>story</span><small>CARE STARTS WITH CONTEXT</small></span></a><span class="footer-note">HACKDAYS 2.O · BEST USE OF GEMINI API · 2026</span><a href="#top" class="back-top">Back to top ↑</a></footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
