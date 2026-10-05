@@ -23,7 +23,7 @@ function loadLocalEnv(filePath) {
 
 const API_KEY = (process.env.GEMINI_API_KEY || '').trim();
 // Model routing: always call the v1beta REST surface and drop a duplicated "models/" prefix.
-const cleanModel = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim().replace(/^models\//, '');
+const cleanModel = (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim().replace(/^models\//, '');
 const MODEL = cleanModel;
 const PORT = Number(process.env.PORT || 4173);
 function getGeminiBaseUrl() {
@@ -138,7 +138,7 @@ async function analyzeImage(req, res) {
   const imageValidation = validateImagePayload({ mimeType, imageData });
   if (!imageValidation.ok) return sendJson(res, imageValidation.status, { message: imageValidation.message });
 
-  const url = `${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(API_KEY)}`;
+  const url = `${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent`;
   const payload = {
     systemInstruction: { parts: [{ text: buildSystemInstruction(language) }] },
     contents: [{
@@ -168,7 +168,8 @@ async function analyzeImage(req, res) {
       const upstreamStatus = response.status;
       const detail = extractUpstreamError(bodyText);
       console.error(`Gemini API returned HTTP ${upstreamStatus}.`);
-      console.error(bodyText);
+      console.error('Request URL was:', url);
+      console.error('Raw Google response:', bodyText);
       const message = detail
         ? `Gemini API error (HTTP ${upstreamStatus}): ${detail}`
         : `Gemini API returned HTTP ${upstreamStatus} with no error detail. Check the server key and model access.`;
