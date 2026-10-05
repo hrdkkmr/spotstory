@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f8f5">
-  <meta name="description" content="SpotStory turns skin observations into a clearer, non-diagnostic note for a healthcare conversation.">
+  <meta name="theme-color" content="#0F5132">
+  <meta name="description" content="SpotStory turns skin observations into a structured, non-diagnostic ABCDE dossier for a healthcare conversation.">
   <title>SpotStory — a clearer story for care</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
 </head>
@@ -24,7 +27,7 @@
     </nav>
     <div class="header-actions">
       <span class="api-status" id="apiStatus"><i></i><span>Checking Gemini…</span></span>
-      <a class="button button-small button-dark" href="#workspace">Try the prototype <span aria-hidden="true">↗</span></a>
+      <a class="button button-small button-primary" href="#workspace">Try the prototype <span aria-hidden="true">↗</span></a>
     </div>
     <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-expanded="false"><span></span><span></span></button>
   </header>
@@ -33,10 +36,10 @@
     <section class="hero section-shell">
       <div class="hero-copy">
         <div class="eyebrow"><span class="eyebrow-dot"></span> A human-first skin-change companion</div>
-        <h1>Make the changing spot<br><em>easier to explain.</em></h1>
-        <p class="hero-lede">SpotStory pairs Gemini’s image understanding with your own timeline to create a calm, factual note for a healthcare conversation — never a cancer score.</p>
+        <h1>Make the changing spot <em>easier to explain.</em></h1>
+        <p class="hero-lede">SpotStory pairs Gemini’s image understanding with your own timeline to create a structured ABCDE observation dossier — calm, factual, and ready for a healthcare conversation. Never a diagnosis, never a cancer score.</p>
         <div class="hero-actions">
-          <a class="button button-coral" href="#workspace">Build a visit brief <span aria-hidden="true">↓</span></a>
+          <a class="button button-primary" href="#workspace">Build a visit brief <span aria-hidden="true">↓</span></a>
           <button class="button button-quiet" id="heroDemo" type="button"><span class="play-dot">▶</span> Explore a sample case</button>
         </div>
         <div class="hero-trust"><span class="checkmark">✓</span> No diagnosis. No probability. No false “all clear.”</div>
@@ -89,9 +92,13 @@
           <div class="photo-controls">
             <label class="select-label" for="languageSelect">Output language</label>
             <select id="languageSelect" aria-label="Output language"><option value="English">English</option><option value="Hindi">हिन्दी · Hindi</option></select>
-            <span class="photo-control-note"><span class="lock-icon">◈</span> Re-encoded in your browser; not saved here.</span>
+            <span class="photo-control-note"><span class="lock-icon">◈</span> Re-encoded in your browser; EXIF/GPS stripped; not saved here.</span>
           </div>
-          <div class="privacy-mini"><b>Before live analysis:</b> your selected photo is sent to Gemini through this prototype’s server. Don’t upload patient-identifiable or private health photos. <a href="#safety">Details</a></div>
+          <div id="preflightNote" class="preflight" hidden role="status">
+            <span class="preflight-icon" aria-hidden="true">◌</span>
+            <div class="preflight-body"><b id="preflightTitle">Pre-flight check</b><p id="preflightText">Checking the photo locally…</p></div>
+          </div>
+          <div class="privacy-mini"><b>Before live analysis:</b> your selected photo is re-encoded on a local canvas (metadata removed, focus checked) and then sent to Gemini through this prototype’s server. Don’t upload patient-identifiable or private health photos. <a href="#safety">Details</a></div>
         </section>
 
         <section class="panel story-panel" aria-labelledby="storyHeading">
@@ -123,18 +130,56 @@
           <label class="consent-row"><input id="liveConsent" type="checkbox"><span class="custom-check"></span><span>I understand live Gemini analysis sends the selected example image for processing. I’m using a fictional/non-identifying image.</span></label>
           <div class="action-row">
             <button class="button button-outline" type="button" id="demoButton"><span class="sparkle">✳</span> Try sample case</button>
-            <button class="button button-coral" type="button" id="liveButton" disabled>Run Gemini photo notes <span aria-hidden="true">↗</span></button>
+            <button class="button button-primary" type="button" id="liveButton" disabled>Run Gemini photo notes <span aria-hidden="true">↗</span></button>
           </div>
           <div id="liveHint" class="live-hint">Live Gemini needs a server-side key and an image. The sample case works without either.</div>
         </section>
       </div>
 
       <div id="resultPanel" class="result-panel" hidden aria-live="polite">
-        <div class="result-topline"><div><span class="result-kicker"><span class="result-dot"></span><span id="resultMode">SAMPLE BRIEF</span></span><h2>Your visit brief</h2></div><div class="result-actions"><button id="copyBrief" class="button button-outline button-small" type="button">Copy note</button><button id="downloadBrief" class="button button-outline button-small" type="button">Download .txt</button><button id="closeResult" class="icon-close" type="button" aria-label="Close result">×</button></div></div>
-        <div class="result-grid">
-          <div class="result-card result-photo-card"><div class="result-card-label">PHOTO NOTE <span class="ai-pill" id="photoNoteTag">ILLUSTRATIVE</span></div><div id="photoQuality" class="photo-quality">No image analyzed</div><ul id="visualNotes" class="visual-notes"><li>This sample case is illustrative and does not use a real skin image.</li></ul><p id="resultLimit" class="result-limit">A camera photo can miss detail, colour can shift with lighting, and Gemini can make mistakes.</p></div>
-          <div class="result-card result-story-card"><div class="result-card-label">YOUR WORDS, ORGANIZED</div><p id="visitNote" class="visit-note"></p><div id="generalGuidance" class="guidance-box"></div></div>
+        <div class="result-topline">
+          <div>
+            <span class="result-kicker"><span class="result-dot"></span><span id="resultMode">SAMPLE BRIEF</span></span>
+            <h2>Clinician Preparation Dossier</h2>
+            <p class="result-sub">Structured ABCDE observations for your consultation — observation only, never a diagnosis.</p>
+          </div>
+          <div class="result-actions"><button id="copyBrief" class="button button-outline button-small" type="button">Copy note</button><button id="downloadBrief" class="button button-outline button-small" type="button">Download .txt</button><button id="closeResult" class="icon-close" type="button" aria-label="Close result">×</button></div>
         </div>
+
+        <div id="qualityWarning" class="quality-warning" hidden role="status">
+          <span class="warn-icon" aria-hidden="true">!</span>
+          <div><b>Photo quality warning</b><p id="retakePrompt">Retake the photo before relying on these descriptors.</p></div>
+        </div>
+
+        <div class="result-grid">
+          <section class="result-card result-photo-card">
+            <div class="result-card-label">ABCDE OBSERVATIONS <span class="ai-pill" id="photoNoteTag">ILLUSTRATIVE</span></div>
+            <div id="abcdeGrid" class="abcde-grid"></div>
+            <div id="photoQuality" class="photo-quality">No image analyzed</div>
+            <ul id="visualNotes" class="visual-notes"><li>This sample case is illustrative and does not use a real skin image.</li></ul>
+            <p id="resultLimit" class="result-limit">A camera photo can miss detail, colour can shift with lighting, and Gemini can make mistakes.</p>
+          </section>
+
+          <section class="result-card result-story-card">
+            <div class="result-card-label">TRIAGE &amp; CONSULT SUMMARY</div>
+            <div class="triage-row">
+              <span id="urgencyLevel" class="triage-pill">Not assessed for this sample</span>
+              <span class="triage-note">Conversation-prioritisation hint only — a clinician decides what care is needed.</span>
+            </div>
+            <div class="summary-block">
+              <div class="summary-head"><span>CONSULT SUMMARY</span><button id="copySummary" class="link-button" type="button">Copy summary</button></div>
+              <p id="summaryNotes" class="summary-text">Run a live Gemini photo note to generate an objective summary ready for physician review.</p>
+            </div>
+            <div class="timeline-block">
+              <div class="result-card-label">TIMELINE DELTAS</div>
+              <ul id="timelineDeltas" class="timeline-deltas"></ul>
+            </div>
+            <div class="result-card-label">YOUR WORDS, ORGANIZED</div>
+            <p id="visitNote" class="visit-note"></p>
+            <div id="generalGuidance" class="guidance-box"></div>
+          </section>
+        </div>
+
         <div class="result-footer"><span class="result-footer-icon">i</span><p><strong>Not a diagnosis or a cancer-risk estimate.</strong> This tool cannot rule out a skin condition. The AI note is for conversation prep only; a clinician decides what an examination or testing should include.</p></div>
       </div>
     </section>
@@ -143,7 +188,7 @@
       <div class="section-shell">
         <div class="section-heading how-heading"><div><div class="eyebrow eyebrow-muted"><span class="eyebrow-dot"></span> THE PRODUCT IDEA</div><h2>AI for the note.<br><em>People for the care.</em></h2></div><p class="section-summary">Gemini is used where multimodal language models are helpful — turning an image and a person's own story into structured, understandable context. A fixed safety layer keeps diagnosis and treatment decisions out of scope.</p></div>
         <div class="how-grid">
-          <article class="how-card"><span class="how-index">01 / NOTICE</span><div class="how-icon icon-peach">◉</div><h3>Describe, don't diagnose</h3><p>Gemini vision returns cautious, plain-language visual observations and photo-quality limits — not a cancer label or score.</p><span class="how-foot">MULTIMODAL INPUT · STRUCTURED OUTPUT</span></article>
+          <article class="how-card"><span class="how-index">01 / NOTICE</span><div class="how-icon icon-accent">◉</div><h3>Describe, don't diagnose</h3><p>Gemini vision returns structured ABCDE descriptors — asymmetry, border, color, relative diameter, evolution — plus photo-quality limits. Never a condition name, never a cancer label.</p><span class="how-foot">MULTIMODAL INPUT · STRUCTURED OUTPUT</span></article>
           <article class="how-card"><span class="how-index">02 / REMEMBER</span><div class="how-icon icon-blue">⌁</div><h3>Your timeline matters</h3><p>New, changing, itchy, bleeding, and non-healing are captured as your reported facts — never guessed from pixels.</p><span class="how-foot">USER-REPORTED · NOT INFERRED</span></article>
           <article class="how-card"><span class="how-index">03 / SHARE</span><div class="how-icon icon-mint">↗</div><h3>Take a clearer note</h3><p>A concise, editable summary helps you explain what you noticed when speaking with a clinician.</p><span class="how-foot">HUMAN-IN-THE-LOOP BY DESIGN</span></article>
         </div>
@@ -154,13 +199,13 @@
       <div class="safety-card">
         <div class="safety-card-left"><div class="eyebrow"><span class="eyebrow-dot"></span> SAFETY BY DESIGN</div><h2>What SpotStory<br><em>will not do.</em></h2><p>This hackathon build is a communication prototype, not a screening or triage product.</p></div>
         <div class="safety-list">
-          <div><span class="safety-x">×</span><p><b>No diagnosis or “all clear.”</b><br>It never estimates whether a spot is cancer.</p></div>
-          <div><span class="safety-x">×</span><p><b>No urgency decision.</b><br>It does not decide how soon care is needed.</p></div>
-          <div><span class="safety-x">×</span><p><b>No saved health record.</b><br>The demo app does not persist your photo or notes.</p></div>
+          <div><span class="safety-x">×</span><p><b>No diagnosis or condition names.</b><br>It never labels a spot as melanoma, basal cell carcinoma, or any other condition — and never gives an “all clear.”</p></div>
+          <div><span class="safety-x">×</span><p><b>No treatment or medication advice.</b><br>It never recommends a treatment, drug, or home remedy.</p></div>
+          <div><span class="safety-x">×</span><p><b>No authority over urgency.</b><br>Its “prompt / routine” triage hint only frames the conversation; a clinician decides how soon care is needed.</p></div>
           <div><span class="safety-x">×</span><p><b>No claim of clinical validation.</b><br>Real-world use would require expert review, fairness testing, privacy work, and appropriate regulatory assessment.</p></div>
         </div>
       </div>
-      <div class="data-note"><span class="lock-icon">◈</span><p><b>Live mode data flow:</b> the browser sends a resized image and your selected context to this local server; the server calls the Gemini API using a secret environment variable and returns structured text. The server does not write images to disk. Google processes the API request under its applicable terms — review them before using any real personal health information.</p></div>
+      <div class="data-note"><span class="lock-icon">◈</span><p><b>Live mode data flow:</b> the browser re-encodes the photo on a local canvas (stripping EXIF/GPS metadata and checking focus), then sends that resized image and your selected context to this local server; the server calls the Gemini API with a secret environment variable and returns structured JSON. Nothing is written to disk — no images, no notes. Google processes the API request under its applicable terms — review them before using any real personal health information.</p></div>
     </section>
 
     <section id="sources" class="sources-section section-shell">

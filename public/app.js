@@ -12,9 +12,15 @@ const resultPanel = $('#resultPanel');
 const toast = $('#toast');
 let selectedImage = null;
 let imageObjectUrl = null;
+let preparedImage = null;
 let apiReady = false;
 let currentBrief = '';
+let currentSummary = '';
 let toastTimer = null;
+
+// Pre-flight thresholds for the local focus check (Laplacian variance / contrast spread).
+const BLUR_VARIANCE_FLOOR = 70;
+const CONTRAST_FLOOR = 6;
 
 const signalCopy = {
   new: { en: 'a new spot', hi: 'नया दाग़ / निशान' },
@@ -65,6 +71,107 @@ function updateLiveState() {
   }
 }
 
+function setPreflight(state, title, text) {
+  const box = $('#preflightNote');
+  box.hidden = false;
+  box.classList.toggle('is-ok', state === 'ok');
+  box.classList.toggle('is-warn', state === 'warn');
+  box.classList.toggle('is-working', state === 'working');
+  box.querySelector('.preflight-icon').textContent = state === 'ok' ? '✓' : state === 'warn' ? '!' : '◌';
+  $('#preflightTitle').textContent = title;
+  $('#preflightText').textContent = text;
+}
+
+function hidePreflight() {
+  const box = $('#preflightNote');
+  box.hidden = true;
+  box.classList.remove('is-ok', 'is-warn', 'is-working');
+}
+
+// Fast local focus check: Laplacian variance plus contrast spread on a small grayscale copy.
+function measureSharpness(source) {
+  const maxSide = 320;
+  const scale = Math.min(1, maxSide / Math.max(source.width, source.height));
+  const width = Math.max(8, Math.round(source.width * scale));
+  const height = Math.max(8, Math.round(source.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, width, height);
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const lum = new Float32Array(width * height);
+  let sum = 0;
+  for (let i = 0, p = 0; i < lum.length; i += 1, p += 4) {
+    lum[i] = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+    sum += lum[i];
+  }
+  const mean = sum / lum.length;
+  let contrastSq = 0;
+  let lapSum = 0;
+  let lapSq = 0;
+  let samples = 0;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const i = y * width + x;
+      contrastSq += (lum[i] - mean) ** 2;
+      const lap = 4 * lum[i] - lum[i - 1] - lum[i + 1] - lum[i - width] - lum[i + width];
+      lapSum += lap;
+      lapSq += lap * lap;
+      samples += 1;
+    }
+  }
+  const contrast = Math.sqrt(contrastSq / lum.length);
+  const lapMean = samples ? lapSum / samples : 0;
+  const lapVariance = samples ? lapSq / samples - lapMean * lapMean : 0;
+  return {
+    blurScore: Math.round(lapVariance),
+    contrast: Math.round(contrast),
+    blurry: lapVariance < BLUR_VARIANCE_FLOOR || contrast < CONTRAST_FLOOR
+  };
+}
+
+// Loads the image into an off-screen canvas, strips EXIF/GPS metadata by re-encoding,
+// and runs the focus check before anything leaves the browser.
+async function prepareImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const maxSide = 1280;
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { alpha: false });
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  const sharpness = measureSharpness(canvas);
+  bitmap.close?.();
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  const imageData = String(dataUrl).split(',')[1] || '';
+  if (imageData.length < 40) throw new Error('Could not re-encode the photo in this browser.');
+  if (imageData.length > 7_000_000) throw new Error('The re-encoded photo is too large. Choose a smaller image.');
+  return { imageData, mimeType: 'image/jpeg', ...sharpness };
+}
+
+async function runPreflight(file) {
+  preparedImage = null;
+  setPreflight('working', 'Pre-flight check', 'Re-encoding the photo on a local canvas (metadata stripped) and running a quick focus check…');
+  try {
+    preparedImage = await prepareImage(file);
+    const { blurScore, contrast, blurry } = preparedImage;
+    if (blurry) {
+      setPreflight('warn', 'Focus check: this photo may be out of focus', `Sharpness score ${blurScore} · contrast ${contrast}. A blurry or very flat photo limits reliable descriptors — retake it before submitting. GPS/EXIF metadata has already been stripped.`);
+    } else {
+      setPreflight('ok', 'Focus check passed', `Sharpness score ${blurScore} · contrast ${contrast}. GPS/EXIF metadata stripped; only this re-encoded JPEG can be sent.`);
+    }
+  } catch (error) {
+    setPreflight('warn', 'Pre-flight check failed', error.message || 'Could not read this photo in your browser.');
+  }
+  updateLiveState();
+}
+
 function chooseImage(file) {
   if (!file) return;
   const allowed = ['image/jpeg', 'image/png', 'image/webp'];
@@ -85,6 +192,7 @@ function chooseImage(file) {
   $('#dropzone').classList.add('has-image');
   $('.preview-label').textContent = file.name === 'spotstory-synthetic-demo.jpg' ? 'SYNTHETIC EXAMPLE · NOT SENT YET' : 'LOCAL PREVIEW · NOT SENT YET';
   updateLiveState();
+  runPreflight(file);
 }
 
 function removeImage(event) {
@@ -99,6 +207,8 @@ function removeImage(event) {
   $('#photoPreview').hidden = true;
   $('#emptyPhoto').hidden = false;
   imageInput.value = '';
+  preparedImage = null;
+  hidePreflight();
   updateLiveState();
 }
 
@@ -254,7 +364,108 @@ function addVisualNote(text) {
   $('#visualNotes').appendChild(li);
 }
 
-function makeBriefText(story, quality, observations, mode) {
+const ABCDE_FIELDS_UI = [
+  ['A', 'Asymmetry', 'asymmetry'],
+  ['B', 'Border', 'border'],
+  ['C', 'Color', 'color'],
+  ['D', 'Diameter (relative)', 'diameter_relative'],
+  ['E', 'Evolution', 'evolution']
+];
+
+function buildDossierLines(dossier) {
+  if (!dossier) return [];
+  return [
+    '',
+    'ABCDE OBSERVATIONS — CLINICAL OBSERVATION ONLY, NOT A DIAGNOSIS',
+    `A · Asymmetry: ${dossier.asymmetry}`,
+    `B · Border: ${dossier.border}`,
+    `C · Color: ${dossier.color}`,
+    `D · Diameter (relative): ${dossier.diameter_relative}`,
+    `E · Evolution: ${dossier.evolution}`,
+    '',
+    `Triage hint: ${dossier.urgency_level}`,
+    dossier.quality_warning ? `Photo quality warning: ${dossier.retake_prompt}` : null,
+    `Consult summary: ${dossier.summary_notes}`
+  ].filter((line) => line !== null && line !== undefined);
+}
+
+function renderAbcde(dossier) {
+  const grid = $('#abcdeGrid');
+  grid.replaceChildren();
+  for (const [letter, label, key] of ABCDE_FIELDS_UI) {
+    const value = dossier && typeof dossier[key] === 'string' ? dossier[key].trim() : '';
+    const badge = document.createElement('article');
+    badge.className = value ? 'abcde-badge' : 'abcde-badge is-empty';
+    const mark = document.createElement('span');
+    mark.className = 'abcde-letter';
+    mark.textContent = letter;
+    const body = document.createElement('div');
+    const title = document.createElement('b');
+    title.textContent = label;
+    const text = document.createElement('p');
+    text.textContent = value || 'Not analyzed — sample case only.';
+    body.append(title, text);
+    badge.append(mark, body);
+    grid.append(badge);
+  }
+}
+
+function renderTriage(dossier) {
+  const pill = $('#urgencyLevel');
+  pill.classList.remove('is-prompt', 'is-empty');
+  if (dossier && dossier.urgency_level) {
+    pill.textContent = dossier.urgency_level;
+    if (/prompt/i.test(dossier.urgency_level)) pill.classList.add('is-prompt');
+  } else {
+    pill.textContent = 'Not assessed for this sample';
+    pill.classList.add('is-empty');
+  }
+}
+
+function renderQualityWarning(dossier) {
+  const box = $('#qualityWarning');
+  const show = Boolean(dossier && dossier.quality_warning);
+  box.hidden = !show;
+  if (show) $('#retakePrompt').textContent = dossier.retake_prompt || 'Retake the photo with steady focus, even lighting, and the camera held parallel to the skin.';
+}
+
+function renderTimeline(story, dossier) {
+  const list = $('#timelineDeltas');
+  list.replaceChildren();
+  const isHindi = story.language === 'Hindi';
+  const items = [];
+  if (story.duration && story.duration !== 'Choose a timeframe') items.push(['Reported duration', story.duration]);
+  if (story.signals.length) items.push(['Reported changes', story.signals.map((signal) => signalCopy[signal]?.[isHindi ? 'hi' : 'en'] || signal).join(', ')]);
+  if (dossier && dossier.evolution) items.push(['Photo-to-photo delta', dossier.evolution]);
+  if (!items.length) items.push(['No timeline yet', 'Add a timeframe or a change above to build your timeline.']);
+  for (const [label, value] of items) {
+    const item = document.createElement('li');
+    const title = document.createElement('b');
+    title.textContent = label;
+    const text = document.createElement('span');
+    text.textContent = value;
+    item.append(title, text);
+    list.append(item);
+  }
+}
+
+function buildSummaryText(story, dossier) {
+  if (!dossier) return currentBrief;
+  return [
+    'CLINICIAN PREPARATION DOSSIER — OBSERVATION ONLY, NOT A DIAGNOSIS',
+    ...ABCDE_FIELDS_UI.map(([letter, label, key]) => `${letter} · ${label}: ${dossier[key]}`),
+    '',
+    `Triage hint: ${dossier.urgency_level}`,
+    dossier.quality_warning ? `Photo quality warning: ${dossier.retake_prompt}` : null,
+    '',
+    dossier.summary_notes,
+    '',
+    'Patient-reported context:',
+    buildVisitNote(story)
+  ].filter((line) => line !== null && line !== undefined).join('\n');
+}
+
+function makeBriefText(story, quality, observations, mode, dossier) {
   const label = mode === 'gemini' ? 'Gemini image note (not clinically validated)' : 'Sample case (illustrative only)';
   return [
     'SPOTSTORY — VISIT PREP NOTE',
@@ -263,6 +474,7 @@ function makeBriefText(story, quality, observations, mode) {
     'PHOTO NOTE',
     `Photo quality: ${quality}`,
     ...observations.map((line) => `• ${line}`),
+    ...buildDossierLines(dossier),
     '',
     'MY STORY',
     buildVisitNote(story),
@@ -274,17 +486,26 @@ function makeBriefText(story, quality, observations, mode) {
   ].join('\n');
 }
 
-function renderResult({ mode, quality, observations, story = currentStory() }) {
+function renderResult({ mode, quality, observations, dossier = null, story = currentStory() }) {
   $('#resultMode').textContent = mode === 'gemini' ? 'LIVE GEMINI · NOT CLINICALLY VALIDATED' : 'SAMPLE BRIEF · STATIC DEMO';
   $('#photoNoteTag').textContent = mode === 'gemini' ? 'AI OBSERVATION' : 'ILLUSTRATIVE';
   $('#photoQuality').textContent = quality;
   const list = $('#visualNotes');
   list.replaceChildren();
   observations.forEach(addVisualNote);
+  renderAbcde(dossier);
+  renderTriage(dossier);
+  renderQualityWarning(dossier);
+  $('#summaryNotes').textContent = (dossier && dossier.summary_notes)
+    || (story.language === 'Hindi'
+      ? 'इस नमूने में लाइव विश्लेषण नहीं हुआ। अपनी कहानी ऊपर जोड़ें, फिर Gemini फोटो नोट चलाएँ।'
+      : 'No live analysis ran for this sample. Capture your timeline above, then run a Gemini photo note to generate an objective summary for physician review.');
+  renderTimeline(story, dossier);
   $('#visitNote').textContent = buildVisitNote(story);
   $('#generalGuidance').innerHTML = buildGuidance(story);
   $('#resultLimit').textContent = 'Gemini can misread details. Focus, lighting, camera processing, and missing scale can change what a photo appears to show.';
-  currentBrief = makeBriefText(story, quality, observations, mode);
+  currentBrief = makeBriefText(story, quality, observations, mode, dossier);
+  currentSummary = buildSummaryText(story, dossier);
   resultPanel.hidden = false;
   resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -301,52 +522,33 @@ function runSampleCase() {
     ? ['इस उदाहरण में किसी असली त्वचा की तस्वीर का विश्लेषण नहीं किया गया है।', 'यह नमूना सिर्फ़ यह दिखाता है कि आपकी बताई बातों को नोट में कैसे बदला जा सकता है।']
     : ['No real skin photo was analyzed in this sample.', 'This fictional example shows how your own reported details can be organized into a visit note.'];
   const quality = isHindi ? 'नमूना उदाहरण — तस्वीर का विश्लेषण नहीं हुआ' : 'Sample only — no image analyzed';
-  renderResult({ mode: 'demo', quality, observations, story });
-}
-
-async function imageToJpegBase64(file) {
-  const bitmap = await createImageBitmap(file);
-  const maxSide = 1280;
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d', { alpha: false });
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close?.();
-  const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Could not resize the photo.')), 'image/jpeg', 0.84));
-  if (blob.size > 5 * 1024 * 1024) throw new Error('The resized photo is too large. Please choose a smaller image.');
-  const dataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Could not read the photo.'));
-    reader.readAsDataURL(blob);
-  });
-  return { imageData: String(dataUrl).split(',')[1], mimeType: 'image/jpeg' };
+  renderResult({ mode: 'demo', quality, observations, dossier: null, story });
 }
 
 async function runGemini() {
   if (!apiReady || !selectedImage || !liveConsent.checked) return;
   const originalLabel = liveButton.innerHTML;
   liveButton.disabled = true;
-  liveButton.textContent = 'Preparing a private image note…';
+  liveButton.textContent = 'Running local pre-flight check…';
   try {
-    const image = await imageToJpegBase64(selectedImage);
+    const image = preparedImage || await prepareImage(selectedImage);
+    if (image.blurry) showToast('Heads up: this photo looks out of focus. Sending it anyway — a sharper photo gives better descriptors.');
     liveButton.textContent = 'Asking Gemini…';
     const response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
-      body: JSON.stringify({ ...image, language: $('#languageSelect').value })
+      body: JSON.stringify({ imageData: image.imageData, mimeType: image.mimeType, language: $('#languageSelect').value })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.message || 'Gemini could not process this image. Try again or use the sample case.');
     if (!Array.isArray(data.observations) || !data.observations.length) throw new Error('No safe visual note was returned. Use the sample case or try a clearer example.');
-    renderResult({ mode: 'gemini', quality: data.quality || 'Limited — visual details may be unreliable', observations: data.observations });
+    renderResult({
+      mode: 'gemini',
+      quality: data.quality || 'Limited — visual details may be unreliable',
+      observations: data.observations,
+      dossier: data.dossier || null
+    });
   } catch (error) {
     showToast(error.message || 'Something went wrong. Try the sample case.');
   } finally {
@@ -367,6 +569,16 @@ $('#copyBrief').addEventListener('click', async () => {
     showToast('Visit note copied. You can edit it before sharing.');
   } catch {
     showToast('Copy was blocked by this browser. Use Download .txt instead.');
+  }
+});
+$('#copySummary').addEventListener('click', async () => {
+  const text = currentSummary || currentBrief;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Consult summary copied for your appointment.');
+  } catch {
+    showToast('Copy was blocked by this browser. Use Copy note instead.');
   }
 });
 $('#downloadBrief').addEventListener('click', () => {

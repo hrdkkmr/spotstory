@@ -104,7 +104,8 @@ test('proxy sends the image to a loopback Gemini stub and filters an unsafe mode
   assert.equal(JSON.stringify(result).includes('unit-test-key-not-a-real-credential'), false);
 
   assert.equal(capturedRequest.method, 'POST');
-  assert.equal(capturedRequest.url, '/v1beta/models/gemini-3.5-flash:generateContent');
+  // Endpoint contract: v1beta path + model, with the credential on the query string as specified.
+  assert.equal(capturedRequest.url, '/v1beta/models/gemini-3.5-flash:generateContent?key=unit-test-key-not-a-real-credential');
   assert.equal(capturedRequest.apiKeyHeader, 'unit-test-key-not-a-real-credential');
   const sentParts = capturedRequest.body.contents[0].parts;
   assert.equal(sentParts.some((part) => part.inlineData?.mimeType === 'image/jpeg'), true);

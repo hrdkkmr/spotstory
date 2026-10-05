@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sanitizeGeminiResult, validateImagePayload } from './lib/safety.mjs';
+import { buildSystemInstruction, buildUserPrompt, sanitizeGeminiResult, validateImagePayload } from './lib/safety.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicRoot = path.join(__dirname, 'public');
@@ -21,8 +21,10 @@ function loadLocalEnv(filePath) {
   } catch { /* Optional local secret file. */ }
 }
 
-const API_KEY = process.env.GEMINI_API_KEY || '';
-const MODEL = (process.env.GEMINI_MODEL || 'gemini-3.5-flash').trim();
+const API_KEY = (process.env.GEMINI_API_KEY || '').trim();
+// Model routing: always call the v1beta REST surface and drop a duplicated "models/" prefix.
+const cleanModel = (process.env.GEMINI_MODEL || 'gemini-1.5-flash').trim().replace(/^models\//, '');
+const MODEL = cleanModel;
 const PORT = Number(process.env.PORT || 4173);
 function getGeminiBaseUrl() {
   if (process.env.NODE_ENV === 'test' && process.env.GEMINI_API_BASE_URL) {
@@ -36,20 +38,20 @@ function getGeminiBaseUrl() {
 const GEMINI_BASE_URL = getGeminiBaseUrl();
 const MAX_JSON_BYTES = 7 * 1024 * 1024;
 const requestsByAddress = new Map();
-const observationSchema = {
-  type: 'OBJECT',
-  properties: {
-    photo_quality: {
-      type: 'STRING',
-      enum: ['Usable for a basic visual note', 'Limited by focus, lighting, or scale', 'Not assessable from this photo']
-    },
-    visual_observations: {
-      type: 'ARRAY',
-      items: { type: 'STRING' }
-    }
-  },
-  required: ['photo_quality', 'visual_observations']
-};
+
+function redactSecret(value) {
+  const text = String(value || '');
+  return API_KEY ? text.split(API_KEY).join('[redacted]') : text;
+}
+
+function extractUpstreamError(bodyText) {
+  try {
+    const parsed = JSON.parse(bodyText);
+    const message = parsed?.error?.message;
+    if (typeof message === 'string' && message.trim()) return redactSecret(message.trim().slice(0, 400));
+  } catch { /* Not a JSON error body; fall through to the raw text. */ }
+  return redactSecret(String(bodyText || '').trim().slice(0, 400));
+}
 
 function sendJson(res, status, body) {
   const payload = JSON.stringify(body);
@@ -136,25 +138,19 @@ async function analyzeImage(req, res) {
   const imageValidation = validateImagePayload({ mimeType, imageData });
   if (!imageValidation.ok) return sendJson(res, imageValidation.status, { message: imageValidation.message });
 
-  const url = `${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+  const url = `${GEMINI_BASE_URL}/v1beta/models/${encodeURIComponent(cleanModel)}:generateContent?key=${encodeURIComponent(API_KEY)}`;
   const payload = {
-    systemInstruction: {
-      parts: [{
-        text: 'You are a constrained visual-description component in a non-clinical educational prototype. Review the provided image only to describe visible photographic qualities and neutral visual details. Do not infer a medical condition or interpret health meaning. Never use any disease names, cancer terms, risk words, diagnosis language, reassurance (including normal/benign/harmless/clear), urgency, care instructions, or treatment. Do not estimate real-world millimetres: there is no scale. Do not infer a person, their history, or symptoms. If the photo is unclear, say so. Mention only what is plainly visible and keep the observations brief. Return only the requested JSON. Output language: ' + language + '.'
-      }]
-    },
+    systemInstruction: { parts: [{ text: buildSystemInstruction(language) }] },
     contents: [{
       role: 'user',
       parts: [
-        { text: 'Create a cautious, non-diagnostic photo note. Report whether focus, lighting, framing, or scale limits a basic visual note. Then provide at most three short observations of visible color, shape, or contrast only when clear. If not clear, state that it is not assessable. Do not provide advice.' },
+        { text: buildUserPrompt(language) },
         { inlineData: { mimeType, data: imageData } }
       ]
     }],
     generationConfig: {
-      temperature: 0.15,
-      maxOutputTokens: 300,
       responseMimeType: 'application/json',
-      responseSchema: observationSchema
+      temperature: 0.2
     }
   };
 
@@ -167,23 +163,33 @@ async function analyzeImage(req, res) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
-    const data = await response.json().catch(() => ({}));
+    const bodyText = await response.text().catch(() => '');
     if (!response.ok) {
       const upstreamStatus = response.status;
+      const detail = extractUpstreamError(bodyText);
       console.error(`Gemini API returned HTTP ${upstreamStatus}.`);
+      console.error(bodyText);
+      const message = detail
+        ? `Gemini API error (HTTP ${upstreamStatus}): ${detail}`
+        : `Gemini API returned HTTP ${upstreamStatus} with no error detail. Check the server key and model access.`;
       return sendJson(res, upstreamStatus === 429 ? 429 : 502, {
         code: upstreamStatus === 429 ? 'GEMINI_QUOTA' : 'GEMINI_REQUEST_FAILED',
-        message: upstreamStatus === 429 ? 'Gemini quota is busy or exhausted. Try later or check the project quota.' : 'Gemini could not process this example. Check that the server key and model access are configured.'
+        upstreamStatus,
+        message,
+        detail: message
       });
     }
+    let data;
+    try { data = JSON.parse(bodyText); }
+    catch { throw new Error('Gemini returned a non-JSON response body.'); }
     const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
     const parsed = parseModelJson(text);
-    const { quality, observations } = sanitizeGeminiResult(parsed, language);
-    return sendJson(res, 200, { mode: 'gemini', model: MODEL, quality, observations });
+    const { quality, observations, dossier } = sanitizeGeminiResult(parsed, language);
+    return sendJson(res, 200, { mode: 'gemini', model: cleanModel, quality, observations, dossier });
   } catch (error) {
     if (error.name === 'AbortError') return sendJson(res, 504, { message: 'Gemini took too long to respond. Please try again.' });
     console.error('Gemini request failed:', error.message);
-    return sendJson(res, 502, { message: 'Gemini is temporarily unavailable. Try again or use the sample case.' });
+    return sendJson(res, 502, { message: redactSecret(`Gemini is temporarily unavailable (${error.message}). Try again or use the sample case.`) });
   } finally {
     clearTimeout(timeout);
   }

@@ -80,3 +80,45 @@ test('rejects malformed and oversized image payloads', () => {
   assert.equal(validateImagePayload({ mimeType: 'image/jpeg', imageData, maxBytes: 50 }).status, 413);
   assert.equal(validateImagePayload({ mimeType: 'image/jpeg', imageData, maxBase64Chars: 40 }).status, 413);
 });
+
+test('sanitizes the ABCDE dossier, blocks pathology names, and clamps urgency to the triage enum', () => {
+  const result = sanitizeGeminiResult({
+    asymmetry: 'The vertical and horizontal axes are not aligned.',
+    border: 'Mostly defined with a small notch on the lower edge.',
+    color: 'Mid-brown shading with a darker upper region.',
+    diameter_relative: 'Occupies a small portion of the frame relative to surrounding skin.',
+    evolution: 'No earlier photo; the user reports gradual change.',
+    urgency_level: 'Emergency surgery now',
+    summary_notes: 'This is melanoma and it looks benign.',
+    quality_warning: true,
+    retake_prompt: 'Retake with steady focus and even lighting.'
+  }, 'English');
+  assert.ok(result.dossier);
+  assert.equal(result.dossier.urgency_level, 'Routine clinical review');
+  assert.equal(result.dossier.quality_warning, true);
+  assert.equal(result.dossier.asymmetry, 'The vertical and horizontal axes are not aligned.');
+  assert.ok(!result.dossier.summary_notes.includes('melanoma'));
+  assert.ok(!result.dossier.summary_notes.includes('benign'));
+  assert.match(result.dossier.retake_prompt, /Retake/);
+  assert.equal(result.quality, 'Limited by focus, lighting, or scale');
+  assert.ok(result.observations.length > 0);
+});
+
+test('keeps a valid triage label and derives quality/observations from ABCDE-only output', () => {
+  const result = sanitizeGeminiResult({
+    asymmetry: 'Roughly balanced across both axes.',
+    border: 'Well defined and evenly rounded.',
+    color: 'One consistent shade throughout.',
+    diameter_relative: 'Comparable in scale to nearby features.',
+    evolution: 'No earlier photo is available for comparison.',
+    urgency_level: 'Prompt specialist evaluation',
+    summary_notes: 'Objective descriptors prepared for physician review.',
+    quality_warning: false
+  }, 'English');
+  assert.equal(result.dossier.urgency_level, 'Prompt specialist evaluation');
+  assert.equal(result.dossier.quality_warning, false);
+  assert.equal(result.dossier.retake_prompt, '');
+  assert.equal(result.quality, 'Usable for a basic visual note');
+  assert.equal(result.observations.length, 3);
+  assert.equal(sanitizeGeminiResult({ photo_quality: 'Usable for a basic visual note' }).dossier, null);
+});
